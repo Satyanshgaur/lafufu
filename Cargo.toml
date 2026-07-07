@@ -1,0 +1,35 @@
+[package]
+name = "lafufu"
+version = "0.1.0"
+edition = "2021"
+authors = ["Satyansh Gaur <satyansh@lafufu.local>"]
+description = "Lafufu is a local-first behavioral intelligence platform"
+
+[dependencies]
+# Async Runtime
+tokio = { version = "1.35", features = ["full"] }
+
+# Database
+rusqlite = { version = "0.31", features = ["bundled", "chrono", "uuid"] }
+
+# Serialization
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+serde_yaml = "0.9"
+
+# Date and Time
+chrono = { version = "0.4", features = ["serde"] }
+
+# Command Line Interface
+clap = { version = "4.4", features = ["derive", "env"] }
+
+# Identifiers
+uuid = { version = "1.6", features = ["v4", "v5", "serde"] }
+
+# Error Handling
+thiserror = "1.0"
+anyhow = "1.0"
+
+# Observability (Logging and Tracing)
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }

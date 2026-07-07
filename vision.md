@@ -2,9 +2,9 @@
 
 Vision
 
-ImmuneOS is a local-first behavioral intelligence platform that learns how digital systems behave, detects meaningful behavioral changes, and explains them in natural language.
+Lafufu is a local-first behavioral intelligence platform that learns how digital systems behave, detects meaningful behavioral changes, and explains them in natural language.
 
-Unlike traditional SIEMs that focus on logs and alerts, ImmuneOS models every system using a universal behavior graph:
+Unlike traditional SIEMs that focus on logs and alerts, Lafufu models every system using a universal behavior graph:
 
 Entity → Event → Context → Time
 
@@ -210,7 +210,7 @@ This is where the Java SDK (or more likely a Python package and a REST API) beco
 
 ### The Sharing Layer
 
-This is where ImmuneOS's network effect begins. Behavioral profiles contain no raw log data — just statistical summaries of entity behavior. An opt-in mechanism lets users share anomaly patterns (not the underlying data) with a central service. A new attack pattern detected in one installation can propagate as a detection heuristic to all others. This is the digital vaccination idea from the original vision, built on top of the local-first CLI foundation rather than requiring a cloud-first architecture from the start.
+This is where Lafufu's network effect begins. Behavioral profiles contain no raw log data — just statistical summaries of entity behavior. An opt-in mechanism lets users share anomaly patterns (not the underlying data) with a central service. A new attack pattern detected in one installation can propagate as a detection heuristic to all others. This is the digital vaccination idea from the original vision, built on top of the local-first CLI foundation rather than requiring a cloud-first architecture from the start.
 
 ---
 
