@@ -1,0 +1,12 @@
+# Rust build artifacts
+/target/
+
+# Local database files
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+
+# OS generated files
+.DS_Store
+Thumbs.db
