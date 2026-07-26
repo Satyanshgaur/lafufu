@@ -1,9 +1,11 @@
 use clap::{Parser, Subcommand};
+use lafufu::behavior::BaselineEngine;
 use lafufu::config::AppConfig;
 use lafufu::errors::Result;
 use lafufu::ingestion::{IngestionPipeline, LogStreamer};
 use lafufu::normalization::{IdentityConfig, IdentityResolver};
 use lafufu::observability::init_observability;
+use lafufu::repository::EntityRepository;
 use lafufu::storage::sqlite::SqliteStorage;
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -34,6 +36,9 @@ enum Commands {
         #[arg(short, long)]
         adapter: Option<String>,
     },
+
+    /// Compute/recompute behavioral baselines across short, medium, and long term temporal layers (Phase 2)
+    Baselines,
 
     /// Tail a target log file continuously and process stream (Phase 1)
     Watch {
@@ -100,6 +105,7 @@ async fn main() {
 
     let resolver = Arc::new(IdentityResolver::new(IdentityConfig::default()));
     let pipeline = Arc::new(IngestionPipeline::new(storage.clone(), resolver));
+    let engine = Arc::new(BaselineEngine::with_default_windows(storage.clone()));
 
     // 4. Parse commands
     let cli = Cli::parse();
@@ -111,7 +117,10 @@ async fn main() {
             }
         }
         Commands::Ingest { path, adapter } => {
-            handle_ingest(pipeline, path, adapter);
+            handle_ingest(pipeline, engine, path, adapter);
+        }
+        Commands::Baselines => {
+            handle_baselines(engine, storage);
         }
         Commands::Watch { path, adapter } => {
             handle_watch(pipeline, path, adapter);
@@ -128,7 +137,12 @@ async fn main() {
     }
 }
 
-fn handle_ingest(pipeline: Arc<IngestionPipeline>, path: PathBuf, adapter: Option<String>) {
+fn handle_ingest(
+    pipeline: Arc<IngestionPipeline>,
+    engine: Arc<BaselineEngine>,
+    path: PathBuf,
+    adapter: Option<String>,
+) {
     info!("Ingesting logs from path: {:?}", path);
     let result = if path.is_dir() {
         pipeline.process_directory(&path, adapter.as_deref())
@@ -146,9 +160,47 @@ fn handle_ingest(pipeline: Arc<IngestionPipeline>, path: PathBuf, adapter: Optio
             println!("  Entities:  {}", report.entities_created);
             println!("  Edges:     {}", report.edges_updated);
             println!("========================================");
+
+            // Recompute behavioral baselines after ingestion
+            if report.events_ingested > 0 {
+                info!("Updating behavioral baselines post-ingestion...");
+                let now = chrono::Utc::now();
+                let _ = engine.recompute_all_baselines(now);
+            }
         }
         Err(e) => {
             error!("Failed to ingest log data: {}", e);
+            std::process::exit(1);
+        }
+    }
+}
+
+fn handle_baselines(engine: Arc<BaselineEngine>, storage: SqliteStorage) {
+    let now = chrono::Utc::now();
+    match engine.recompute_all_baselines(now) {
+        Ok(count) => {
+            println!("========================================");
+            println!(" Behavioral Baseline Engine Summary");
+            println!("========================================");
+            println!("  Entities Profiled: {}", count);
+            println!("----------------------------------------");
+
+            if let Ok(entities) = EntityRepository::find_all(&storage) {
+                for entity in entities {
+                    if let Ok(Some(layers)) = engine.load_temporal_layers(&entity.id) {
+                        let drift = layers.calculate_drift();
+                        let anomaly = layers.calculate_anomaly();
+                        println!(
+                            "  - {} ({}) | Drift: {:.4} | Anomaly: {:.4}",
+                            entity.canonical_name, entity.entity_type, drift, anomaly
+                        );
+                    }
+                }
+            }
+            println!("========================================");
+        }
+        Err(e) => {
+            error!("Failed to compute baselines: {}", e);
             std::process::exit(1);
         }
     }
@@ -183,6 +235,6 @@ async fn handle_status(storage: SqliteStorage) -> Result<()> {
     println!("  Edges:     {}", edge_count);
     println!("  Baselines: {}", baseline_count);
     println!("========================================");
-    println!("Status: Behavior graph engine operational.");
+    println!("Status: Behavioral baseline engine operational.");
     Ok(())
 }
