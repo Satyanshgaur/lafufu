@@ -1,6 +1,7 @@
 use clap::{Parser, Subcommand};
 use lafufu::behavior::BaselineEngine;
 use lafufu::config::AppConfig;
+use lafufu::detection::DetectionEngine;
 use lafufu::errors::Result;
 use lafufu::ingestion::{IngestionPipeline, LogStreamer};
 use lafufu::normalization::{IdentityConfig, IdentityResolver};
@@ -39,6 +40,13 @@ enum Commands {
 
     /// Compute/recompute behavioral baselines across short, medium, and long term temporal layers (Phase 2)
     Baselines,
+
+    /// Detect anomalies, new behaviors, behavior drift, and rank most changed entities (Phase 3)
+    Detect {
+        /// Time window for detection (e.g. 24h, 7d)
+        #[arg(short, long, default_value = "24h")]
+        since: String,
+    },
 
     /// Tail a target log file continuously and process stream (Phase 1)
     Watch {
@@ -106,6 +114,7 @@ async fn main() {
     let resolver = Arc::new(IdentityResolver::new(IdentityConfig::default()));
     let pipeline = Arc::new(IngestionPipeline::new(storage.clone(), resolver));
     let engine = Arc::new(BaselineEngine::with_default_windows(storage.clone()));
+    let detector = Arc::new(DetectionEngine::new(storage.clone(), engine.clone()));
 
     // 4. Parse commands
     let cli = Cli::parse();
@@ -121,6 +130,9 @@ async fn main() {
         }
         Commands::Baselines => {
             handle_baselines(engine, storage);
+        }
+        Commands::Detect { since } => {
+            handle_detect(detector, since);
         }
         Commands::Watch { path, adapter } => {
             handle_watch(pipeline, path, adapter);
@@ -206,6 +218,54 @@ fn handle_baselines(engine: Arc<BaselineEngine>, storage: SqliteStorage) {
     }
 }
 
+fn handle_detect(detector: Arc<DetectionEngine>, since_str: String) {
+    let now = chrono::Utc::now();
+    let since = if since_str.ends_with('h') {
+        let hours: i64 = since_str.trim_end_matches('h').parse().unwrap_or(24);
+        now - chrono::Duration::hours(hours)
+    } else if since_str.ends_with('d') {
+        let days: i64 = since_str.trim_end_matches('d').parse().unwrap_or(7);
+        now - chrono::Duration::days(days)
+    } else {
+        now - chrono::Duration::hours(24)
+    };
+
+    println!("========================================");
+    println!(" Lafufu Behavioral Detection & Scoring");
+    println!(" Window: {}", since_str);
+    println!("========================================");
+
+    match detector.detect_observations(since) {
+        Ok(obs_list) => {
+            println!(" Detected Observations: {}", obs_list.len());
+            for obs in &obs_list {
+                println!("  [{:?}] {} (Score: {:.2})", obs.category, obs.title, obs.anomaly_score);
+                println!("    {}", obs.description);
+            }
+        }
+        Err(e) => error!("Failed to detect observations: {}", e),
+    }
+
+    println!("----------------------------------------");
+    println!(" Most Changed Entities (Ranked):");
+    match detector.get_most_changed_entities(5) {
+        Ok(changed) => {
+            if changed.is_empty() {
+                println!("  (No significant behavioral changes detected)");
+            } else {
+                for (rank, item) in changed.iter().enumerate() {
+                    println!(
+                        "  {}. {} ({}) | Change Score: {:.4} (Drift: {:.2}, Anomaly: {:.2})",
+                        rank + 1, item.canonical_name, item.entity_type, item.combined_change_score, item.drift_score, item.anomaly_score
+                    );
+                }
+            }
+        }
+        Err(e) => error!("Failed to get most changed entities: {}", e),
+    }
+    println!("========================================");
+}
+
 fn handle_watch(pipeline: Arc<IngestionPipeline>, path: Option<PathBuf>, adapter: Option<String>) {
     let streamer = LogStreamer::new(pipeline);
     if let Some(target_file) = path {
@@ -235,6 +295,6 @@ async fn handle_status(storage: SqliteStorage) -> Result<()> {
     println!("  Edges:     {}", edge_count);
     println!("  Baselines: {}", baseline_count);
     println!("========================================");
-    println!("Status: Behavioral baseline engine operational.");
+    println!("Status: Detection & Scoring Layer operational.");
     Ok(())
 }

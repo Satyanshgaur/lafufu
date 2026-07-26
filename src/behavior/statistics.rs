@@ -57,7 +57,11 @@ impl RunningStats {
     pub fn z_score(&self, x: f64) -> f64 {
         let std = self.std_dev();
         if std == 0.0 {
-            0.0
+            if (x - self.mean).abs() < 1e-9 {
+                0.0
+            } else {
+                (x - self.mean).abs()
+            }
         } else {
             (x - self.mean) / std
         }

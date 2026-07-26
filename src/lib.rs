@@ -1,6 +1,7 @@
 pub mod adapters;
 pub mod behavior;
 pub mod config;
+pub mod detection;
 pub mod domain;
 pub mod errors;
 pub mod ingestion;

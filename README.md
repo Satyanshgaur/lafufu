@@ -26,21 +26,22 @@ Unlike traditional SIEMs (Security Information and Event Management systems) tha
 | **Phase 0 — Core Data Model & Storage Engine** | Universal graph primitives (`Entity`, `Event`, `Edge`, `Baseline`), SQLite WAL storage engine with auto-indexing, thread-safe repositories, and CLI foundation. | **Completed** |
 | **Phase 1 — Ingestion Pipeline & Adapters** | Extensible log adapters (Generic JSON, Syslog Auth, GitHub Events, Docker Events), flexible timestamp normalizer, identity resolver (canonical entity mapping), batch directory ingestion, and streaming file tailer. | **Completed** |
 | **Phase 2 — Behavioral Baseline Engine** | Per-entity profile learning, rolling statistical distributions (hours, locations, action frequency, interaction graphs), Jensen-Shannon Divergence calculations, and multi-layer temporal baseline computation. | **Completed** |
-| **Phase 3 — Detection & Scoring Layer** | Anomaly fusion engine combining sequence anomaly, velocity spike detection, and graph structure changes into an integrated behavioral change score. | *Up Next* |
-| **Phase 4 — Explainability & CLI Reports** | Natural language explanation engine, interactive timeline navigation (`lafufu explain`), log replay (`lafufu replay`), and data export (`lafufu export`). | *Planned* |
+| **Phase 3 — Detection & Scoring Layer** | Tri-signal anomaly fusion engine (Sequence, Velocity, Graph), entity-specific fusion weights, observation categorizer (`Stable`, `NewBehavior`, `BehaviorDrift`, `SuddenAnomaly`), and ranked most-changed-entities algorithm. | **Completed** |
+| **Phase 4 — Explainability & CLI Reports** | Natural language explanation engine, interactive timeline navigation (`lafufu explain`), log replay (`lafufu replay`), and data export (`lafufu export`). | *Up Next* |
 
 ---
 
 ## 🚀 Current Status
 
-**Phase 0, Phase 1, and Phase 2 are fully implemented and verified!**
+**Phase 0, Phase 1, Phase 2, and Phase 3 are fully implemented and verified!**
 
 - **Database Engine**: Fully operational SQLite storage backend with WAL mode, automatic migrations, and indexing.
 - **Log Adapters**: 4 concrete adapters implemented (`generic_json`, `syslog_auth`, `github_events`, `docker_events`).
 - **Identity & Normalization**: Canonical identity resolution (`alice@company.com` $\rightarrow$ `alice`) and multi-format timestamp parser.
 - **Behavioral Baseline Engine**: 3 temporal horizons (Short: 72h, Medium: 30d, Long: 365d), Laplace-smoothed probability distributions, RunningStats (mean/variance/z-score), and Jensen-Shannon Divergence metric for behavioral drift calculation.
-- **CLI Commands**: `status`, `ingest`, and `watch` commands working end-to-end.
-- **Test Suite**: 100% pass rate across unit and integration tests (`cargo test`).
+- **Detection & Scoring Layer**: Tri-signal anomaly fusion ($S_{\text{seq}}, S_{\text{vel}}, S_{\text{graph}}$), entity-tailored fusion weights, observation categorizer, and ranked `MostChangedEntity` list (`lafufu detect`).
+- **CLI Commands**: `status`, `ingest`, `baselines`, `detect`, and `watch` commands fully functional.
+- **Test Suite**: 100% pass rate across 20 unit and integration tests (`cargo test`).
 
 ---
 
@@ -117,7 +118,12 @@ cargo run -- ingest path/to/log_dir/
 cargo run -- baselines
 ```
 
-### 6. Tail Log Streams Continuously (Watch Mode)
+### 6. Detect Anomalies & Rank Most Changed Entities
+```bash
+cargo run -- detect --since 24h
+```
+
+### 7. Tail Log Streams Continuously (Watch Mode)
 ```bash
 cargo run -- watch --path /var/log/auth.log
 ```
