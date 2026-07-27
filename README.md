@@ -27,21 +27,22 @@ Unlike traditional SIEMs (Security Information and Event Management systems) tha
 | **Phase 1 — Ingestion Pipeline & Adapters** | Extensible log adapters (Generic JSON, Syslog Auth, GitHub Events, Docker Events), flexible timestamp normalizer, identity resolver (canonical entity mapping), batch directory ingestion, and streaming file tailer. | **Completed** |
 | **Phase 2 — Behavioral Baseline Engine** | Per-entity profile learning, rolling statistical distributions (hours, locations, action frequency, interaction graphs), Jensen-Shannon Divergence calculations, and multi-layer temporal baseline computation. | **Completed** |
 | **Phase 3 — Detection & Scoring Layer** | Tri-signal anomaly fusion engine (Sequence, Velocity, Graph), entity-specific fusion weights, observation categorizer (`Stable`, `NewBehavior`, `BehaviorDrift`, `SuddenAnomaly`), and ranked most-changed-entities algorithm. | **Completed** |
-| **Phase 4 — Explainability & CLI Reports** | Natural language explanation engine, interactive timeline navigation (`lafufu explain`), log replay (`lafufu replay`), and data export (`lafufu export`). | *Up Next* |
+| **Phase 4 — Natural Language Interface & Reports** | Deterministic narrative briefings (`lafufu explain`), chronological behavioral timelines (`lafufu timeline`), profile diff engine (`lafufu diff`), evidence-grounded Q&A (`lafufu ask`), historical log replay (`lafufu replay`), and data export (`lafufu export`). | **Completed** |
 
 ---
 
 ## 🚀 Current Status
 
-**Phase 0, Phase 1, Phase 2, and Phase 3 are fully implemented and verified!**
+**Phase 0 through Phase 4 are fully implemented, integrated, and verified!**
 
 - **Database Engine**: Fully operational SQLite storage backend with WAL mode, automatic migrations, and indexing.
 - **Log Adapters**: 4 concrete adapters implemented (`generic_json`, `syslog_auth`, `github_events`, `docker_events`).
 - **Identity & Normalization**: Canonical identity resolution (`alice@company.com` $\rightarrow$ `alice`) and multi-format timestamp parser.
 - **Behavioral Baseline Engine**: 3 temporal horizons (Short: 72h, Medium: 30d, Long: 365d), Laplace-smoothed probability distributions, RunningStats (mean/variance/z-score), and Jensen-Shannon Divergence metric for behavioral drift calculation.
-- **Detection & Scoring Layer**: Tri-signal anomaly fusion ($S_{\text{seq}}, S_{\text{vel}}, S_{\text{graph}}$), entity-tailored fusion weights, observation categorizer, and ranked `MostChangedEntity` list (`lafufu detect`).
-- **CLI Commands**: `status`, `ingest`, `baselines`, `detect`, and `watch` commands fully functional.
-- **Test Suite**: 100% pass rate across 20 unit and integration tests (`cargo test`).
+- **Detection & Scoring Layer**: Tri-signal anomaly fusion ($S_{\text{seq}}, S_{\text{vel}}, S_{\text{graph}}$), entity-tailored fusion weights, observation categorizer, and ranked `MostChangedEntity` list.
+- **Natural Language Interface**: Grounded narrative briefings, entity timelines, profile diffs, conversational query engine, historical replay, and JSON export.
+- **CLI Commands**: Full suite (`status`, `ingest`, `baselines`, `detect`, `explain`, `timeline`, `diff`, `ask`, `replay`, `export`, `watch`).
+- **Test Suite**: 100% pass rate across 21 unit and integration tests (`cargo test`).
 
 ---
 
@@ -123,7 +124,31 @@ cargo run -- baselines
 cargo run -- detect --since 24h
 ```
 
-### 7. Tail Log Streams Continuously (Watch Mode)
+### 7. Generate Natural Language Briefings & Explanations
+```bash
+# Narrative briefing for the past 24 hours
+cargo run -- explain --since 24h
+
+# Render chronological timeline of an entity
+cargo run -- timeline alice
+
+# Compare an entity's behavioral profile across baselines
+cargo run -- diff alice
+
+# Ask natural language questions grounded in evidence
+cargo run -- ask "What changed today?"
+```
+
+### 8. Replay & Export Data
+```bash
+# Replay log files to recompute derived baselines
+cargo run -- replay path/to/logs/
+
+# Export entities or events to JSON format
+cargo run -- export entities
+```
+
+### 9. Tail Log Streams Continuously (Watch Mode)
 ```bash
 cargo run -- watch --path /var/log/auth.log
 ```

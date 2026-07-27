@@ -3,6 +3,7 @@ use lafufu::behavior::BaselineEngine;
 use lafufu::config::AppConfig;
 use lafufu::detection::DetectionEngine;
 use lafufu::errors::Result;
+use lafufu::explanation::ExplanationEngine;
 use lafufu::ingestion::{IngestionPipeline, LogStreamer};
 use lafufu::normalization::{IdentityConfig, IdentityResolver};
 use lafufu::observability::init_observability;
@@ -48,6 +49,44 @@ enum Commands {
         since: String,
     },
 
+    /// Generate natural language briefing report of behavioral changes (Phase 4)
+    Explain {
+        /// Time range for explanation (e.g., 24h, 7d)
+        #[arg(short, long, default_value = "24h")]
+        since: String,
+    },
+
+    /// Render chronological narrative view of an entity's behavioral history (Phase 4)
+    Timeline {
+        /// Canonical name of target entity
+        entity: String,
+    },
+
+    /// Compare an entity's behavioral profile across time horizons (Phase 4)
+    Diff {
+        /// Canonical name of target entity
+        entity: String,
+    },
+
+    /// Conversational query interface grounded in behavior graph evidence (Phase 4)
+    Ask {
+        /// Natural language question
+        query: String,
+    },
+
+    /// Replay raw logs to recompute derived baseline metrics and detect changes (Phase 4)
+    Replay {
+        /// Path to directory of historical log files
+        path: PathBuf,
+    },
+
+    /// Export database contents (entities, events, edges) to standard JSON format (Phase 4)
+    Export {
+        /// Target table to export (events, entities, edges)
+        #[arg(value_name = "TABLE")]
+        table: String,
+    },
+
     /// Tail a target log file continuously and process stream (Phase 1)
     Watch {
         /// File path to tail continuously
@@ -56,26 +95,6 @@ enum Commands {
         /// Specific log adapter to use
         #[arg(short, long)]
         adapter: Option<String>,
-    },
-
-    /// Generate behavioral explanation report (Phase 4)
-    Explain {
-        /// Time range for explanation (e.g., 24h, 7d)
-        #[arg(short, long, default_value = "24h")]
-        since: String,
-    },
-
-    /// Replay raw logs to recompute derived baseline metrics (Phase 4)
-    Replay {
-        /// Path to directory of historical log files
-        path: PathBuf,
-    },
-
-    /// Export database contents to standard formats (Phase 4)
-    Export {
-        /// Target table to export (events, entities, edges, baselines)
-        #[arg(value_name = "TABLE")]
-        table: String,
     },
 }
 
@@ -115,6 +134,7 @@ async fn main() {
     let pipeline = Arc::new(IngestionPipeline::new(storage.clone(), resolver));
     let engine = Arc::new(BaselineEngine::with_default_windows(storage.clone()));
     let detector = Arc::new(DetectionEngine::new(storage.clone(), engine.clone()));
+    let explanation = Arc::new(ExplanationEngine::new(storage.clone(), detector.clone(), engine.clone()));
 
     // 4. Parse commands
     let cli = Cli::parse();
@@ -134,17 +154,41 @@ async fn main() {
         Commands::Detect { since } => {
             handle_detect(detector, since);
         }
-        Commands::Watch { path, adapter } => {
-            handle_watch(pipeline, path, adapter);
-        }
         Commands::Explain { since } => {
-            info!("Explanation summaries not fully implemented (Phase 4). Query window: {}", since);
+            match explanation.generate_explain_report(&since) {
+                Ok(rep) => print!("{}", rep),
+                Err(e) => error!("Failed to generate explain report: {}", e),
+            }
+        }
+        Commands::Timeline { entity } => {
+            match explanation.generate_timeline(&entity) {
+                Ok(tl) => print!("{}", tl),
+                Err(e) => error!("Failed to generate timeline: {}", e),
+            }
+        }
+        Commands::Diff { entity } => {
+            match explanation.generate_diff(&entity) {
+                Ok(df) => print!("{}", df),
+                Err(e) => error!("Failed to generate profile diff: {}", e),
+            }
+        }
+        Commands::Ask { query } => {
+            match explanation.process_ask_query(&query) {
+                Ok(ans) => print!("{}", ans),
+                Err(e) => error!("Failed to process query: {}", e),
+            }
         }
         Commands::Replay { path } => {
-            info!("Historical replay not fully implemented (Phase 4). Source: {:?}", path);
+            handle_replay(pipeline, engine, explanation, path);
         }
         Commands::Export { table } => {
-            info!("Data export not fully implemented (Phase 4). Target table: {}", table);
+            match explanation.export_table(&table) {
+                Ok(json) => println!("{}", json),
+                Err(e) => error!("Export failed: {}", e),
+            }
+        }
+        Commands::Watch { path, adapter } => {
+            handle_watch(pipeline, path, adapter);
         }
     }
 }
@@ -173,7 +217,6 @@ fn handle_ingest(
             println!("  Edges:     {}", report.edges_updated);
             println!("========================================");
 
-            // Recompute behavioral baselines after ingestion
             if report.events_ingested > 0 {
                 info!("Updating behavioral baselines post-ingestion...");
                 let now = chrono::Utc::now();
@@ -184,6 +227,30 @@ fn handle_ingest(
             error!("Failed to ingest log data: {}", e);
             std::process::exit(1);
         }
+    }
+}
+
+fn handle_replay(
+    pipeline: Arc<IngestionPipeline>,
+    engine: Arc<BaselineEngine>,
+    explanation: Arc<ExplanationEngine>,
+    path: PathBuf,
+) {
+    info!("Replaying historical log data from: {:?}", path);
+    let res = if path.is_dir() {
+        pipeline.process_directory(&path, None)
+    } else {
+        pipeline.process_file(&path, None)
+    };
+
+    if let Ok(rep) = res {
+        println!("Replayed {} events successfully.", rep.events_ingested);
+        let _ = engine.recompute_all_baselines(chrono::Utc::now());
+        if let Ok(summary) = explanation.generate_explain_report("24h") {
+            print!("{}", summary);
+        }
+    } else if let Err(e) = res {
+        error!("Replay failed: {}", e);
     }
 }
 
@@ -295,6 +362,6 @@ async fn handle_status(storage: SqliteStorage) -> Result<()> {
     println!("  Edges:     {}", edge_count);
     println!("  Baselines: {}", baseline_count);
     println!("========================================");
-    println!("Status: Detection & Scoring Layer operational.");
+    println!("Status: Phase 4 Natural Language Interface & Explanations operational.");
     Ok(())
 }
